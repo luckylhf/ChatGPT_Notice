@@ -1,0 +1,20 @@
+{
+  "name": "chatgpt-notice",
+  "interface": {
+    "displayName": "ChatGPT Notice"
+  },
+  "plugins": [
+    {
+      "name": "miao-le-ge-mi-status",
+      "source": {
+        "source": "local",
+        "path": "./plugins/miao-le-ge-mi-status"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

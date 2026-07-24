@@ -1,0 +1,17 @@
+{
+  "name": "miao-le-ge-mi-status",
+  "version": "0.1.0",
+  "description": "在 macOS 菜单栏显示 ChatGPT 与 Codex 任务的实时状态。",
+  "author": {
+    "name": "luckylhf"
+  },
+  "interface": {
+    "displayName": "喵了个咪的赶紧干活",
+    "shortDescription": "在菜单栏查看 ChatGPT 任务是否仍有进展。",
+    "longDescription": "只读分析本机 ChatGPT 桌面日志与 Codex 会话日志，显示最近活跃任务的状态和最后更新时间。",
+    "defaultPrompt": "启动菜单栏状态监控，显示当前 ChatGPT 与 Codex 任务的进展。",
+    "developerName": "luckylhf",
+    "category": "Productivity",
+    "capabilities": ["Read"]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "description": "在 ChatGPT/Codex 会话开始时启动菜单栏状态监控器。",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${PLUGIN_ROOT}/scripts/start-monitor.sh\"",
+            "timeout": 10,
+            "statusMessage": "启动任务状态监控"
+          }
+        ]
+      }
+    ]
+  }
+}
