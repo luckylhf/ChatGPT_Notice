@@ -242,6 +242,7 @@ static NSString *const MLGMChatGPTBundleID = @"com.openai.codex";
 
 @interface MLGMAppDelegate : NSObject <NSApplicationDelegate>
 @property(nonatomic) NSStatusItem *statusItem;
+@property(nonatomic) NSMenu *statusMenu;
 @property(nonatomic) MLGMLogMonitor *monitor;
 @property(nonatomic) NSArray<MLGMTaskStatus *> *tasks;
 @property(nonatomic) NSTimer *displayTimer;
@@ -253,6 +254,8 @@ static NSString *const MLGMChatGPTBundleID = @"com.openai.codex";
     self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSVariableStatusItemLength];
     self.statusItem.button.title = @"没有任务：0";
     self.statusItem.button.toolTip = @"没有任务：0";
+    self.statusMenu = [NSMenu new];
+    self.statusItem.menu = self.statusMenu;
 
     self.monitor = [MLGMLogMonitor new];
     __weak typeof(self) weakSelf = self;
@@ -280,6 +283,7 @@ static NSString *const MLGMChatGPTBundleID = @"com.openai.codex";
     if (!recent) {
         self.statusItem.button.title = @"没有任务：0";
         self.statusItem.button.toolTip = @"没有任务：0";
+        [self updateMenuWithLines:@[@"没有任务：0"]];
         return;
     }
 
@@ -295,6 +299,21 @@ static NSString *const MLGMChatGPTBundleID = @"com.openai.codex";
                           MLGMActivityLabel(task.kind), (long)taskSeconds, task.title]];
     }
     self.statusItem.button.toolTip = [lines componentsJoinedByString:@"\n"];
+    [self updateMenuWithLines:lines];
+}
+
+- (void)updateMenuWithLines:(NSArray<NSString *> *)lines {
+    [self.statusMenu removeAllItems];
+    for (NSString *line in lines) {
+        NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:line
+                                                     action:@selector(menuItemSelected:)
+                                              keyEquivalent:@""];
+        item.target = self;
+        [self.statusMenu addItem:item];
+    }
+}
+
+- (void)menuItemSelected:(NSMenuItem *)item {
 }
 @end
 
