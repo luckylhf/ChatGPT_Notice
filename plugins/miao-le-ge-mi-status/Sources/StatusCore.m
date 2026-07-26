@@ -81,6 +81,9 @@ NSInteger MLGMElapsedSeconds(NSDate *eventDate, NSDate *now) {
     switch (signal.type) {
         case MLGMStatusSignalStarted: {
             if (!resolvedID) return;
+            if (![signal.taskID hasPrefix:@"chat:"]) {
+                [self.tasks removeObjectForKey:[@"chat:" stringByAppendingString:signal.taskID]];
+            }
             MLGMTaskStatus *task = [MLGMTaskStatus new];
             task.taskID = resolvedID;
             task.kind = signal.kind;
@@ -96,9 +99,15 @@ NSInteger MLGMElapsedSeconds(NSDate *eventDate, NSDate *now) {
             task.lastEventAt = signal.date;
             break;
         }
-        case MLGMStatusSignalFinished:
-            if (resolvedID) [self.tasks removeObjectForKey:resolvedID];
+        case MLGMStatusSignalFinished: {
+            if (!signal.taskID) break;
+            NSString *plainID = [signal.taskID hasPrefix:@"chat:"]
+                ? [signal.taskID substringFromIndex:5]
+                : signal.taskID;
+            [self.tasks removeObjectForKey:plainID];
+            [self.tasks removeObjectForKey:[@"chat:" stringByAppendingString:plainID]];
             break;
+        }
     }
 }
 

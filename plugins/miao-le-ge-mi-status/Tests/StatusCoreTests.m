@@ -92,6 +92,23 @@ int main(void) {
                                                    at:MLGMParseTimestamp(@"2026-07-23T12:00:06.000Z")]];
         CHECK(store.sortedTasks.count == 1, "finished tasks should be removed");
 
+        MLGMStatusStore *aliasStore = [MLGMStatusStore new];
+        [aliasStore applySignal:[MLGMStatusSignal started:@"chat:thread-alias"
+                                                     kind:MLGMActivityReasoning
+                                                       at:MLGMParseTimestamp(@"2026-07-23T12:01:00.000Z")]];
+        [aliasStore applySignal:[MLGMStatusSignal started:@"thread-alias"
+                                                     kind:MLGMActivityReasoning
+                                                       at:MLGMParseTimestamp(@"2026-07-23T12:01:01.000Z")]];
+        CHECK(aliasStore.sortedTasks.count == 1,
+              "a canonical task should replace its chat-prefixed alias");
+        [aliasStore applySignal:[MLGMStatusSignal finished:@"thread-alias"
+                                                        at:MLGMParseTimestamp(@"2026-07-23T12:01:02.000Z")]];
+        [aliasStore applySignal:[MLGMStatusSignal activity:nil
+                                                     kind:MLGMActivityRetrying
+                                                       at:MLGMParseTimestamp(@"2026-07-23T12:01:03.000Z")]];
+        CHECK(aliasStore.sortedTasks.count == 0,
+              "finishing a task should also remove its chat-prefixed alias");
+
         MLGMStatusSignal *finish = [session parseLine:JSONLine(
             @"2026-07-23T10:04:00.000Z", @"event_msg", @{@"type": @"task_complete"}
         )];
