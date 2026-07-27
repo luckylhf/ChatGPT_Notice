@@ -11,6 +11,7 @@
 ```
 
 例如 `推理：210`。每出现一个新的有效状态，秒数就会归零；最大显示 `9999`。鼠标悬停在菜单栏文字上时，会通过 Tooltip 显示全部尚未完成的任务；单击状态文字则会打开包含相同内容的原生菜单。
+<img width="472" height="240" alt="91cbd9358f6197effad2a39c9d00a284" src="https://github.com/user-attachments/assets/67f34c03-2df6-45a9-bb32-5a1cfcd2ffaa" />
 
 ## 功能
 
