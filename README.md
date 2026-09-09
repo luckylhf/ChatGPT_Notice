@@ -20,16 +20,17 @@
 - 悬停时通过 Tooltip 显示全部未完成任务。
 - 单击时通过原生菜单显示全部未完成任务；再次单击或失去焦点后自动关闭。
 - 所有任务完成后显示 `没有任务：0`。
-- ChatGPT 完全退出约 3 秒后自动退出。
-- 新会话开始时通过 Codex `SessionStart` Hook 自动启动。
+- ChatGPT 和 VS Code 都完全退出约 3 秒后自动退出。
+- 新会话开始或提交任务时通过 Codex Hook 自动启动。
 - 多个任务同时运行时只启动一个菜单栏实例。
 
 ## 自动启动范围
 
-当前版本只有 **Codex 任务启动**会触发插件的 `SessionStart` Hook，普通 ChatGPT 对话不会触发。
+当前版本会在 Codex 会话开始或提交任务时启动菜单栏程序，支持 ChatGPT 桌面应用和 VS Code Codex 扩展；普通 ChatGPT 对话不会触发。
 
 - 只打开普通 ChatGPT 对话：菜单栏程序不会自动出现。
-- 开始一次 Codex 任务：菜单栏程序自动出现，并持续运行到 ChatGPT 退出。
+- 在 ChatGPT 或 VS Code 中开始一次 Codex 任务：菜单栏程序自动出现。
+- ChatGPT 或 VS Code 任一仍在运行：菜单栏程序保持运行。
 - 程序运行期间：仍会尝试监控普通 ChatGPT 对话产生的桌面日志。
 
 因此，重启 ChatGPT 后如果只使用普通对话，暂时看不到菜单栏状态属于当前版本的预期行为，不代表插件安装失败。
@@ -50,7 +51,7 @@
 
 - Apple Silicon Mac
 - macOS 13 或更高版本
-- 当前版 ChatGPT 桌面应用（包含 Codex）
+- 当前版 ChatGPT 桌面应用（包含 Codex）或 VS Code Codex 扩展
 
 当前仓库内附带的是本机临时签名的 ARM64 菜单栏程序。Intel Mac 暂未提供预编译版本，但可以修改构建参数自行编译。
 
@@ -74,7 +75,7 @@
 /Applications/ChatGPT.app/Contents/Resources/codex plugin marketplace remove chatgpt-notice
 ```
 
-如果菜单栏程序仍在运行，退出 ChatGPT 后它会在约 3 秒内自行退出。
+如果菜单栏程序仍在运行，退出 ChatGPT 和 VS Code 后它会在约 3 秒内自行退出。
 
 ## 隐私
 

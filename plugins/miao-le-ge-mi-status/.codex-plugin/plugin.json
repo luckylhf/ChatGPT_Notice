@@ -1,6 +1,6 @@
 {
   "name": "miao-le-ge-mi-status",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260909112027",
   "description": "在 macOS 菜单栏显示 ChatGPT 与 Codex 任务的实时状态。",
   "author": {
     "name": "luckylhf"
