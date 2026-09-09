@@ -21,6 +21,7 @@ typedef NS_ENUM(NSInteger, MLGMStatusSignalType) {
 FOUNDATION_EXPORT NSString *MLGMActivityLabel(MLGMActivityKind kind);
 FOUNDATION_EXPORT NSDate * _Nullable MLGMParseTimestamp(NSString *value);
 FOUNDATION_EXPORT NSInteger MLGMElapsedSeconds(NSDate *eventDate, NSDate *now);
+FOUNDATION_EXPORT BOOL MLGMShouldKeepRunning(BOOL chatGPTRunning, BOOL vsCodeRunning);
 
 @interface MLGMStatusSignal : NSObject
 @property(nonatomic) MLGMStatusSignalType type;

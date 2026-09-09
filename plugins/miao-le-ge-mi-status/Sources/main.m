@@ -2,6 +2,7 @@
 #import "StatusCore.h"
 
 static NSString *const MLGMChatGPTBundleID = @"com.openai.codex";
+static NSString *const MLGMVSCodeBundleID = @"com.microsoft.VSCode";
 
 @interface MLGMLogCursor : NSObject
 @property(nonatomic, copy) NSString *path;
@@ -123,7 +124,9 @@ static NSString *const MLGMChatGPTBundleID = @"com.openai.codex";
     BOOL changed = [self consumeLogs];
     if (changed) [self publish];
 
-    if ([NSRunningApplication runningApplicationsWithBundleIdentifier:MLGMChatGPTBundleID].count == 0) {
+    BOOL chatGPTRunning = [NSRunningApplication runningApplicationsWithBundleIdentifier:MLGMChatGPTBundleID].count > 0;
+    BOOL vsCodeRunning = [NSRunningApplication runningApplicationsWithBundleIdentifier:MLGMVSCodeBundleID].count > 0;
+    if (!MLGMShouldKeepRunning(chatGPTRunning, vsCodeRunning)) {
         self.missingAppTicks++;
         if (self.missingAppTicks >= 3) {
             dispatch_async(dispatch_get_main_queue(), ^{

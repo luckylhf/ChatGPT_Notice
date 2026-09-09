@@ -30,6 +30,10 @@ NSInteger MLGMElapsedSeconds(NSDate *eventDate, NSDate *now) {
     return MIN((NSInteger)9999, MAX((NSInteger)0, (NSInteger)floor(elapsed)));
 }
 
+BOOL MLGMShouldKeepRunning(BOOL chatGPTRunning, BOOL vsCodeRunning) {
+    return chatGPTRunning || vsCodeRunning;
+}
+
 @implementation MLGMStatusSignal
 + (instancetype)signal:(MLGMStatusSignalType)type taskID:(NSString *)taskID kind:(MLGMActivityKind)kind at:(NSDate *)date {
     MLGMStatusSignal *signal = [self new];

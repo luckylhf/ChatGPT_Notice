@@ -79,6 +79,9 @@ int main(void) {
         CHECK(MLGMElapsedSeconds(MLGMParseTimestamp(@"2026-07-23T00:00:00.000Z"),
                                  MLGMParseTimestamp(@"2026-07-24T00:00:00.000Z")) == 9999,
               "elapsed seconds should be capped at 9999");
+        CHECK(MLGMShouldKeepRunning(YES, NO), "ChatGPT should keep the monitor running");
+        CHECK(MLGMShouldKeepRunning(NO, YES), "VS Code should keep the monitor running");
+        CHECK(!MLGMShouldKeepRunning(NO, NO), "the monitor should stop when both hosts exit");
 
         MLGMStatusStore *store = [MLGMStatusStore new];
         [store setTitles:@{@"thread-1": @"任务 A", @"thread-2": @"任务 B"}];
