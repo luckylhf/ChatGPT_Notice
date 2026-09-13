@@ -24,6 +24,7 @@
 - 修复版已安装为 `0.1.0+codex.20260913081249`，仓库、个人 marketplace 源和安装缓存的变更文件哈希一致。
 - 当前菜单栏进程 PID 95993 从修复版缓存启动，旧版缓存进程已退出。
 - 用户已查看修复后的菜单栏并确认结果正常。
+- 修复提交 `d3b3faa` 已推送到 `git@github.com:luckylhf/ChatGPT_Notice.git` 的 `main`。
 
 ## 未知项
 
@@ -39,8 +40,8 @@
 
 ## 当前结论
 
-截图由会话文件 ID 取错造成：错误的 rollout ID 既产生重复项，也使 `task_complete` 无法删除桌面线程副本。源码已改为使用 `session_meta.session_id`，自动化测试、插件结构、签名校验和用户实际显示验收均通过，实际运行进程已切换到修复版。
+截图由会话文件 ID 取错造成：错误的 rollout ID 既产生重复项，也使 `task_complete` 无法删除桌面线程副本。源码已改为使用 `session_meta.session_id`，自动化测试、插件结构、签名校验和用户实际显示验收均通过，实际运行进程已切换到修复版，代码已同步到 GitHub `main`。
 
 ## 下一步唯一动作
 
-提交当前修复并推送到 `git@github.com:luckylhf/ChatGPT_Notice.git` 的 `main`。
+保持问题关闭；仅在重复项或已完成任务残留再次出现时重新打开诊断。
