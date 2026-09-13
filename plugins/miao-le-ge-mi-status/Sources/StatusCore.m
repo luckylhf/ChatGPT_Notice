@@ -25,6 +25,15 @@ NSDate *MLGMParseTimestamp(NSString *value) {
     return [fractional dateFromString:value] ?: [plain dateFromString:value];
 }
 
+NSString *MLGMSessionIDFromMetadataLine(NSString *line) {
+    NSData *data = [line dataUsingEncoding:NSUTF8StringEncoding];
+    NSDictionary *root = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+    if (![root[@"type"] isEqualToString:@"session_meta"]) return nil;
+    NSDictionary *payload = [root[@"payload"] isKindOfClass:NSDictionary.class] ? root[@"payload"] : @{};
+    NSString *sessionID = [payload[@"session_id"] isKindOfClass:NSString.class] ? payload[@"session_id"] : nil;
+    return sessionID.length ? sessionID : nil;
+}
+
 NSInteger MLGMElapsedSeconds(NSDate *eventDate, NSDate *now) {
     NSTimeInterval elapsed = [now timeIntervalSinceDate:eventDate];
     return MIN((NSInteger)9999, MAX((NSInteger)0, (NSInteger)floor(elapsed)));

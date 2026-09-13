@@ -26,6 +26,15 @@ static NSString *FunctionCall(NSString *timestamp, NSString *name, NSString *arg
 
 int main(void) {
     @autoreleasepool {
+        NSString *metadataID = MLGMSessionIDFromMetadataLine(JSONLine(
+            @"2026-09-13T03:30:10.735Z", @"session_meta", @{
+                @"session_id": @"thread-1",
+                @"id": @"rollout-1",
+            }
+        ));
+        CHECK([metadataID isEqualToString:@"thread-1"],
+              "session metadata should supply the canonical thread ID");
+
         MLGMSessionLogParser *session = [[MLGMSessionLogParser alloc] initWithSessionID:@"thread-1"];
         MLGMStatusSignal *start = [session parseLine:JSONLine(
             @"2026-07-23T10:00:00.000Z", @"event_msg", @{@"type": @"task_started"}
@@ -96,15 +105,15 @@ int main(void) {
         CHECK(store.sortedTasks.count == 1, "finished tasks should be removed");
 
         MLGMStatusStore *aliasStore = [MLGMStatusStore new];
-        [aliasStore applySignal:[MLGMStatusSignal started:@"chat:thread-alias"
+        [aliasStore applySignal:[MLGMStatusSignal started:@"chat:thread-1"
                                                      kind:MLGMActivityReasoning
                                                        at:MLGMParseTimestamp(@"2026-07-23T12:01:00.000Z")]];
-        [aliasStore applySignal:[MLGMStatusSignal started:@"thread-alias"
+        [aliasStore applySignal:[MLGMStatusSignal started:metadataID
                                                      kind:MLGMActivityReasoning
                                                        at:MLGMParseTimestamp(@"2026-07-23T12:01:01.000Z")]];
         CHECK(aliasStore.sortedTasks.count == 1,
               "a canonical task should replace its chat-prefixed alias");
-        [aliasStore applySignal:[MLGMStatusSignal finished:@"thread-alias"
+        [aliasStore applySignal:[MLGMStatusSignal finished:metadataID
                                                         at:MLGMParseTimestamp(@"2026-07-23T12:01:02.000Z")]];
         [aliasStore applySignal:[MLGMStatusSignal activity:nil
                                                      kind:MLGMActivityRetrying

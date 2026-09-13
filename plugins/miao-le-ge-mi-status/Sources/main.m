@@ -197,12 +197,19 @@ static NSString *const MLGMVSCodeBundleID = @"com.microsoft.VSCode";
 }
 
 - (NSString *)sessionIDFromPath:(NSString *)path {
-    NSString *pattern = @"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\\.jsonl$";
-    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern
-                                                                           options:NSRegularExpressionCaseInsensitive
-                                                                             error:nil];
-    NSTextCheckingResult *match = [regex firstMatchInString:path options:0 range:NSMakeRange(0, path.length)];
-    return match.numberOfRanges > 1 ? [path substringWithRange:[match rangeAtIndex:1]] : nil;
+    FILE *file = fopen(path.fileSystemRepresentation, "r");
+    if (!file) return nil;
+    char *bytes = NULL;
+    size_t capacity = 0;
+    ssize_t length = getline(&bytes, &capacity, file);
+    fclose(file);
+    if (length < 0) {
+        free(bytes);
+        return nil;
+    }
+    NSString *line = [[NSString alloc] initWithBytes:bytes length:(NSUInteger)length encoding:NSUTF8StringEncoding];
+    free(bytes);
+    return line ? MLGMSessionIDFromMetadataLine(line) : nil;
 }
 
 - (BOOL)consumeLogs {
