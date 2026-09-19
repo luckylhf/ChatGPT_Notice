@@ -76,11 +76,16 @@ int main(void) {
         ];
         CHECK([chatStart.taskID isEqualToString:@"chat:abc123"], "desktop conversations should be tracked");
 
-        MLGMStatusSignal *retry = [desktop parseLine:
+        MLGMStatusSignal *globalRetry = [desktop parseLine:
             @"2026-07-23T12:00:05.000Z info [electron-message-handler] "
              "chatgpt_pubsub_reconnect_scheduled delayMs=250 retryCount=2"
         ];
-        CHECK(retry.kind == MLGMActivityRetrying, "reconnect should be Network Retry");
+        CHECK(globalRetry == nil, "a global reconnect without a conversation ID must not affect a task");
+        MLGMStatusSignal *retry = [desktop parseLine:
+            @"2026-07-23T12:00:05.500Z info [electron-message-handler] "
+             "TimeoutError conversationId=abc123"
+        ];
+        CHECK(retry.kind == MLGMActivityRetrying, "a task-specific timeout should be Network Retry");
         CHECK([desktop parseLine:
             @"2026-07-23T12:00:06.000Z info [AppServerConnection] "
              "response_routed durationMs=2 timeoutMs=30000 errorCode=null"
@@ -120,6 +125,48 @@ int main(void) {
                                                        at:MLGMParseTimestamp(@"2026-07-23T12:01:03.000Z")]];
         CHECK(aliasStore.sortedTasks.count == 0,
               "finishing a task should also remove its chat-prefixed alias");
+
+        MLGMDesktopLogParser *sideChat = [MLGMDesktopLogParser new];
+        CHECK([sideChat parseLine:
+            @"2026-07-23T12:02:00.000Z info [AppServerConnection] "
+             "response_routed conversationId=parent-1 errorCode=null method=thread/fork"
+        ] == nil, "fork bookkeeping should not emit a visible status");
+        CHECK([sideChat parseLine:
+            @"2026-07-23T12:02:00.100Z info [AppServerConnection] "
+             "response_routed conversationId=child-1 errorCode=null method=thread/inject_items"
+        ] == nil, "side-chat injection bookkeeping should not emit a visible status");
+        MLGMStatusSignal *sideStart = [sideChat parseLine:
+            @"2026-07-23T12:02:01.000Z info [electron-message-handler] "
+             "Reasoning summary turn-start config resolved conversationId=child-1"
+        ];
+        CHECK(sideStart.type == MLGMStatusSignalStarted, "side chat should start a visible status");
+        CHECK([sideStart.taskID isEqualToString:@"parent-1"], "side chat should be attributed to its parent task");
+
+        MLGMStatusStore *sideOnlyStore = [MLGMStatusStore new];
+        [sideOnlyStore setTitles:@{@"parent-1": @"主任务"}];
+        [sideOnlyStore applySignal:sideStart];
+        CHECK(sideOnlyStore.sortedTasks.count == 1, "side chat should create only the parent row");
+        CHECK([sideOnlyStore.sortedTasks.firstObject.title isEqualToString:@"主任务"],
+              "side chat should use the parent task title");
+        MLGMStatusSignal *sideFinish = [sideChat parseLine:
+            @"2026-07-23T12:02:02.000Z info [browser-session-registry] "
+             "IAB_LIFECYCLE ended browser use session activity conversationId=child-1"
+        ];
+        [sideOnlyStore applySignal:sideFinish];
+        CHECK(sideOnlyStore.sortedTasks.count == 0, "completed side chat should not leave a parent row behind");
+
+        MLGMStatusStore *concurrentStore = [MLGMStatusStore new];
+        [concurrentStore setTitles:@{@"parent-1": @"主任务"}];
+        [concurrentStore applySignal:[MLGMStatusSignal started:@"parent-1"
+                                                            kind:MLGMActivityReasoning
+                                                              at:MLGMParseTimestamp(@"2026-07-23T12:01:59.000Z")]];
+        [concurrentStore applySignal:sideStart];
+        [concurrentStore applySignal:sideFinish];
+        CHECK(concurrentStore.sortedTasks.count == 1,
+              "finishing side chat must not remove a concurrently active parent task");
+        [concurrentStore applySignal:[MLGMStatusSignal finished:@"parent-1"
+                                                               at:MLGMParseTimestamp(@"2026-07-23T12:02:03.000Z")]];
+        CHECK(concurrentStore.sortedTasks.count == 0, "parent completion should remove the merged row");
 
         MLGMStatusSignal *finish = [session parseLine:JSONLine(
             @"2026-07-23T10:04:00.000Z", @"event_msg", @{@"type": @"task_complete"}

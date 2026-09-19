@@ -43,6 +43,10 @@ BOOL MLGMShouldKeepRunning(BOOL chatGPTRunning, BOOL vsCodeRunning) {
     return chatGPTRunning || vsCodeRunning;
 }
 
+@interface MLGMStatusSignal ()
+@property(nonatomic, copy, nullable) NSString *sourceTaskID;
+@end
+
 @implementation MLGMStatusSignal
 + (instancetype)signal:(MLGMStatusSignalType)type taskID:(NSString *)taskID kind:(MLGMActivityKind)kind at:(NSDate *)date {
     MLGMStatusSignal *signal = [self new];
@@ -69,6 +73,8 @@ BOOL MLGMShouldKeepRunning(BOOL chatGPTRunning, BOOL vsCodeRunning) {
 @interface MLGMStatusStore ()
 @property(nonatomic) NSMutableDictionary<NSString *, MLGMTaskStatus *> *tasks;
 @property(nonatomic) NSDictionary<NSString *, NSString *> *titles;
+@property(nonatomic) NSMutableSet<NSString *> *baseActiveTasks;
+@property(nonatomic) NSMutableDictionary<NSString *, NSMutableSet<NSString *> *> *sideChatSources;
 @end
 
 @implementation MLGMStatusStore
@@ -77,6 +83,8 @@ BOOL MLGMShouldKeepRunning(BOOL chatGPTRunning, BOOL vsCodeRunning) {
     if (self) {
         _tasks = [NSMutableDictionary dictionary];
         _titles = @{};
+        _baseActiveTasks = [NSMutableSet set];
+        _sideChatSources = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -95,14 +103,24 @@ BOOL MLGMShouldKeepRunning(BOOL chatGPTRunning, BOOL vsCodeRunning) {
         case MLGMStatusSignalStarted: {
             if (!resolvedID) return;
             if (![signal.taskID hasPrefix:@"chat:"]) {
-                [self.tasks removeObjectForKey:[@"chat:" stringByAppendingString:signal.taskID]];
+                NSString *alias = [@"chat:" stringByAppendingString:signal.taskID];
+                [self.tasks removeObjectForKey:alias];
+                [self.baseActiveTasks removeObject:alias];
+                [self.sideChatSources removeObjectForKey:alias];
             }
-            MLGMTaskStatus *task = [MLGMTaskStatus new];
+            MLGMTaskStatus *task = self.tasks[resolvedID] ?: [MLGMTaskStatus new];
             task.taskID = resolvedID;
             task.kind = signal.kind;
             task.lastEventAt = signal.date;
             task.title = self.titles[resolvedID] ?: [self fallbackTitle:resolvedID];
             self.tasks[resolvedID] = task;
+            if (signal.sourceTaskID) {
+                NSMutableSet *sources = self.sideChatSources[resolvedID] ?: [NSMutableSet set];
+                [sources addObject:signal.sourceTaskID];
+                self.sideChatSources[resolvedID] = sources;
+            } else {
+                [self.baseActiveTasks addObject:resolvedID];
+            }
             break;
         }
         case MLGMStatusSignalActivity: {
@@ -117,8 +135,18 @@ BOOL MLGMShouldKeepRunning(BOOL chatGPTRunning, BOOL vsCodeRunning) {
             NSString *plainID = [signal.taskID hasPrefix:@"chat:"]
                 ? [signal.taskID substringFromIndex:5]
                 : signal.taskID;
-            [self.tasks removeObjectForKey:plainID];
-            [self.tasks removeObjectForKey:[@"chat:" stringByAppendingString:plainID]];
+            for (NSString *candidate in @[plainID, [@"chat:" stringByAppendingString:plainID]]) {
+                if (signal.sourceTaskID) {
+                    [self.sideChatSources[candidate] removeObject:signal.sourceTaskID];
+                } else {
+                    [self.baseActiveTasks removeObject:candidate];
+                }
+                if (![self.baseActiveTasks containsObject:candidate]
+                    && self.sideChatSources[candidate].count == 0) {
+                    [self.tasks removeObjectForKey:candidate];
+                    [self.sideChatSources removeObjectForKey:candidate];
+                }
+            }
             break;
         }
     }
@@ -271,12 +299,36 @@ static MLGMActivityKind MLGMClassifyTool(NSDictionary *payload, MLGMActivityKind
 }
 @end
 
+@interface MLGMDesktopLogParser ()
+@property(nonatomic, copy, nullable) NSString *pendingForkParentID;
+@property(nonatomic) NSMutableDictionary<NSString *, NSString *> *sideChatParents;
+@end
+
 @implementation MLGMDesktopLogParser
+- (instancetype)init {
+    self = [super init];
+    if (self) _sideChatParents = [NSMutableDictionary dictionary];
+    return self;
+}
+
 - (MLGMStatusSignal *)parseLine:(NSString *)line {
     NSRange firstSpace = [line rangeOfString:@" "];
     if (firstSpace.location == NSNotFound) return nil;
     NSDate *date = MLGMParseTimestamp([line substringToIndex:firstSpace.location]);
     if (!date) return nil;
+
+    if ([line containsString:@"method=thread/fork"] && [line containsString:@"errorCode=null"]) {
+        self.pendingForkParentID = [self extractValue:@"conversationId" line:line];
+        return nil;
+    }
+    if ([line containsString:@"method=thread/inject_items"] && self.pendingForkParentID) {
+        NSString *childID = [self extractValue:@"conversationId" line:line];
+        if (childID && ![childID isEqualToString:self.pendingForkParentID]) {
+            self.sideChatParents[childID] = self.pendingForkParentID;
+        }
+        self.pendingForkParentID = nil;
+        return nil;
+    }
 
     if ([line containsString:@"chatgpt_pubsub_reconnect_scheduled"]
         || [line rangeOfString:@"reconnectAttempt=[1-9][0-9]*" options:NSRegularExpressionSearch].location != NSNotFound
@@ -285,22 +337,32 @@ static MLGMActivityKind MLGMClassifyTool(NSDictionary *payload, MLGMActivityKind
         || [line containsString:@"ETIMEDOUT"]
         || [line containsString:@"timeout_error"]) {
         NSString *taskID = [self extractValue:@"conversationId" line:line];
-        return [MLGMStatusSignal activity:taskID ? [@"chat:" stringByAppendingString:taskID] : nil
+        if (!taskID) return nil;
+        NSString *parentID = self.sideChatParents[taskID];
+        return [MLGMStatusSignal activity:parentID ?: [@"chat:" stringByAppendingString:taskID]
                                             kind:MLGMActivityRetrying
                                               at:date];
     }
 
     if ([line containsString:@"Reasoning summary turn-start config resolved"]) {
         NSString *taskID = [self extractValue:@"conversationId" line:line];
-        if (taskID) return [MLGMStatusSignal started:[@"chat:" stringByAppendingString:taskID]
-                                               kind:MLGMActivityReasoning
-                                                 at:date];
+        if (taskID) {
+            NSString *parentID = self.sideChatParents[taskID];
+            MLGMStatusSignal *signal = [MLGMStatusSignal started:parentID ?: [@"chat:" stringByAppendingString:taskID]
+                                                               kind:MLGMActivityReasoning
+                                                                 at:date];
+            signal.sourceTaskID = parentID ? taskID : nil;
+            return signal;
+        }
     }
     if ([line containsString:@"Reasoning summary item completed"]) {
         NSString *taskID = [self extractValue:@"threadId" line:line];
-        if (taskID) return [MLGMStatusSignal activity:[@"chat:" stringByAppendingString:taskID]
+        if (taskID) {
+            NSString *parentID = self.sideChatParents[taskID];
+            return [MLGMStatusSignal activity:parentID ?: [@"chat:" stringByAppendingString:taskID]
                                                 kind:MLGMActivityReasoning
                                                   at:date];
+        }
     }
     if ([line containsString:@"Reasoning summary part added"]) {
         NSString *taskID = [self extractJSONValue:@"thread_id" line:line];
@@ -312,7 +374,22 @@ static MLGMActivityKind MLGMClassifyTool(NSDictionary *payload, MLGMActivityKind
         || [line containsString:@"latestTurnStatus=completed"]
         || [line containsString:@"latestTurnStatus=interrupted"]) {
         NSString *taskID = [self extractValue:@"conversationId" line:line];
-        if (taskID) return [MLGMStatusSignal finished:[@"chat:" stringByAppendingString:taskID] at:date];
+        if (taskID) {
+            NSString *parentID = self.sideChatParents[taskID];
+            MLGMStatusSignal *signal = [MLGMStatusSignal finished:parentID ?: [@"chat:" stringByAppendingString:taskID]
+                                                                  at:date];
+            signal.sourceTaskID = parentID ? taskID : nil;
+            return signal;
+        }
+    }
+    if ([line containsString:@"IAB_LIFECYCLE ended browser use session activity"]) {
+        NSString *taskID = [self extractValue:@"conversationId" line:line];
+        NSString *parentID = taskID ? self.sideChatParents[taskID] : nil;
+        if (parentID) {
+            MLGMStatusSignal *signal = [MLGMStatusSignal finished:parentID at:date];
+            signal.sourceTaskID = taskID;
+            return signal;
+        }
     }
     return nil;
 }
