@@ -7,7 +7,7 @@ static NSString *const MLGMVSCodeBundleID = @"com.microsoft.VSCode";
 @interface MLGMLogCursor : NSObject
 @property(nonatomic, copy) NSString *path;
 @property(nonatomic) unsigned long long offset;
-@property(nonatomic, copy) NSString *pending;
+@property(nonatomic, copy) NSData *pendingData;
 - (instancetype)initWithPath:(NSString *)path;
 - (NSArray<NSString *> *)readAvailableLines;
 @end
@@ -17,7 +17,7 @@ static NSString *const MLGMVSCodeBundleID = @"com.microsoft.VSCode";
     self = [super init];
     if (self) {
         _path = [path copy];
-        _pending = @"";
+        _pendingData = [NSData data];
     }
     return self;
 }
@@ -27,7 +27,7 @@ static NSString *const MLGMVSCodeBundleID = @"com.microsoft.VSCode";
     unsigned long long size = [attributes[NSFileSize] unsignedLongLongValue];
     if (size < self.offset) {
         self.offset = 0;
-        self.pending = @"";
+        self.pendingData = [NSData data];
     }
     if (size == self.offset) return @[];
 
@@ -38,18 +38,20 @@ static NSString *const MLGMVSCodeBundleID = @"com.microsoft.VSCode";
     [handle closeFile];
     self.offset += data.length;
 
-    NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-    if (!text) return @[];
-    NSString *combined = [self.pending stringByAppendingString:text];
-    NSMutableArray<NSString *> *parts = [[combined componentsSeparatedByString:@"\n"] mutableCopy];
-    if ([combined hasSuffix:@"\n"]) {
-        self.pending = @"";
-        if (parts.lastObject.length == 0) [parts removeLastObject];
-    } else {
-        self.pending = parts.lastObject ?: @"";
-        if (parts.count > 0) [parts removeLastObject];
+    NSMutableData *combined = [self.pendingData mutableCopy];
+    [combined appendData:data];
+    const unsigned char *bytes = combined.bytes;
+    NSMutableArray<NSString *> *lines = [NSMutableArray array];
+    NSUInteger lineStart = 0;
+    for (NSUInteger index = 0; index < combined.length; index++) {
+        if (bytes[index] != '\n') continue;
+        NSData *lineData = [combined subdataWithRange:NSMakeRange(lineStart, index - lineStart)];
+        NSString *line = [[NSString alloc] initWithData:lineData encoding:NSUTF8StringEncoding];
+        if (line) [lines addObject:line];
+        lineStart = index + 1;
     }
-    return parts;
+    self.pendingData = [combined subdataWithRange:NSMakeRange(lineStart, combined.length - lineStart)];
+    return lines;
 }
 @end
 
